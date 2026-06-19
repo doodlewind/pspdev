@@ -1,4 +1,4 @@
-ARG BASE_DOCKER_IMAGE
+ARG BASE_DOCKER_IMAGE=ghcr.io/pspdev/psp-packages:latest
 
 FROM $BASE_DOCKER_IMAGE AS builder
 
