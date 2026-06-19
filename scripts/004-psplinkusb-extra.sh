@@ -95,7 +95,7 @@ chmod +x "$NORMALIZE_OBJECTS"
 export PSPLINKUSB_NORMALIZE_OBJECTS="$NORMALIZE_OBJECTS"
 
 while IFS= read -r MAKEFILE; do
-	perl -0pi -e 's/(\nPSPSDK=\$\(shell psp-config --pspsdk-path\)\ninclude \$\(PSPSDK\)\/lib\/build[^ \n]*\.mak\n)/\n.PHONY: normalize-psp-objects\n\$(TARGET).elf: | normalize-psp-objects\nnormalize-psp-objects: \$(OBJS)\n\t\$(PSPLINKUSB_NORMALIZE_OBJECTS) \$(OBJS)\n$1/s' "$MAKEFILE"
+	perl -0pi -e 's/(\nPSPSDK=\$\(shell psp-config --pspsdk-path\)\ninclude \$\(PSPSDK\)\/lib\/build[^ \n]*\.mak\n)/$1\n.PHONY: normalize-psp-objects\n\$(TARGET).elf: | normalize-psp-objects\nnormalize-psp-objects: \$(OBJS) \$(EXPORT_OBJ)\n\t\$(PSPLINKUSB_NORMALIZE_OBJECTS) \$(OBJS) \$(EXPORT_OBJ)\n/s' "$MAKEFILE"
 done < <(find . -name Makefile -type f -exec grep -l '\$(PSPSDK)/lib/build' {} +)
 
 for MAKEFILE in libpsplink/Makefile libpsplink_driver/Makefile libusbhostfs/Makefile libusbhostfs_driver/Makefile; do
