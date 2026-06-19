@@ -128,10 +128,17 @@ normalize_archive() {
     "${LLVM_AR}" x "${archive}"
   )
 
+  local member_list="${WORK_DIR}/${name%.a}.members"
+  find "${archive_dir}" -type f | sort > "${member_list}"
+  if [[ ! -s "${member_list}" ]]; then
+    echo "Skipping empty PSP archive: ${name}"
+    return
+  fi
+
   local changed=0
   while IFS= read -r obj; do
     local file_symbols
-    file_symbols="$("${LLVM_READELF}" -s "${obj}" | awk '$4 == "FILE" && $5 == "LOCAL" && $8 != "" { print $8 }' | sort -u)"
+    file_symbols="$("${LLVM_READELF}" -s "${obj}" 2>/dev/null | awk '$4 == "FILE" && $5 == "LOCAL" && $8 != "" { print $8 }' | sort -u || true)"
     if [[ -n "${file_symbols}" ]]; then
       changed=1
       local strip_args=()
@@ -140,14 +147,20 @@ normalize_archive() {
       done <<< "${file_symbols}"
       "${LLVM_OBJCOPY}" "${strip_args[@]}" "${obj}"
     fi
-  done < <(find "${archive_dir}" -type f -name "*.o" | sort)
+  done < "${member_list}"
 
-  perl "${PATCH_ELF}" "${archive_dir}"/*.o
+  while IFS= read -r obj; do
+    perl "${PATCH_ELF}" "${obj}"
+  done < "${member_list}"
 
   rm -f "${archive}"
+  local members=()
+  while IFS= read -r obj; do
+    members+=("${obj#${archive_dir}/}")
+  done < "${member_list}"
   (
     cd "${archive_dir}"
-    "${LLVM_AR}" rc "${archive}" ./*.o
+    "${LLVM_AR}" rc "${archive}" "${members[@]}"
   )
   "${LLVM_RANLIB}" "${archive}"
 
