@@ -6,6 +6,9 @@ on:
   repository_dispatch:
     types: [run_build]
 
+permissions:
+  contents: write
+
 jobs:
   prepare-release:
     runs-on: ubuntu-latest
