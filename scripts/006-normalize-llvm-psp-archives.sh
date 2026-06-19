@@ -7,9 +7,24 @@ if [[ -z "${PSPDEV:-}" ]]; then
   exit 1
 fi
 
-LIB_DIR="${PSPDEV}/psp/lib"
-if [[ ! -d "${LIB_DIR}" ]]; then
-  echo "No PSP library directory found at ${LIB_DIR}; skipping archive normalization."
+ARCHIVE_DIRS=()
+add_archive_dir() {
+  local dir="$1"
+  if [[ -d "${dir}" ]]; then
+    ARCHIVE_DIRS+=("${dir}")
+  fi
+}
+
+add_archive_dir "${PSPDEV}/psp/lib"
+add_archive_dir "${PSPDEV}/psp/sdk/lib"
+if [[ -d "${PSPDEV}/lib/gcc/psp" ]]; then
+  while IFS= read -r dir; do
+    add_archive_dir "${dir}"
+  done < <(find "${PSPDEV}/lib/gcc/psp" -mindepth 1 -maxdepth 1 -type d | sort)
+fi
+
+if [[ "${#ARCHIVE_DIRS[@]}" -eq 0 ]]; then
+  echo "No PSP archive directories found under ${PSPDEV}; skipping archive normalization."
   exit 0
 fi
 
@@ -135,8 +150,8 @@ normalize_archive() {
   local archive="$1"
   local name
   name="$(basename "${archive}")"
-  local archive_dir="${WORK_DIR}/${name%.a}"
-  mkdir -p "${archive_dir}"
+  local archive_dir
+  archive_dir="$(mktemp -d "${WORK_DIR}/${name%.a}.XXXXXX")"
 
   (
     cd "${archive_dir}"
@@ -146,7 +161,7 @@ normalize_archive() {
   local member_list="${WORK_DIR}/${name%.a}.members"
   find "${archive_dir}" -type f | sort > "${member_list}"
   if [[ ! -s "${member_list}" ]]; then
-    echo "Skipping empty PSP archive: ${name}"
+    echo "Skipping empty PSP archive: ${archive#${PSPDEV}/}"
     return
   fi
 
@@ -180,13 +195,15 @@ normalize_archive() {
   "${LLVM_RANLIB}" "${archive}"
 
   if [[ "${changed}" -eq 1 ]]; then
-    echo "Normalized PSP archive symbols and metadata: ${name}"
+    echo "Normalized PSP archive symbols and metadata: ${archive#${PSPDEV}/}"
   else
-    echo "Normalized PSP archive metadata: ${name}"
+    echo "Normalized PSP archive metadata: ${archive#${PSPDEV}/}"
   fi
 }
 
-for archive in "${LIB_DIR}"/*.a; do
-  [[ -e "${archive}" ]] || continue
-  normalize_archive "${archive}"
+for dir in "${ARCHIVE_DIRS[@]}"; do
+  for archive in "${dir}"/*.a; do
+    [[ -e "${archive}" ]] || continue
+    normalize_archive "${archive}"
+  done
 done
