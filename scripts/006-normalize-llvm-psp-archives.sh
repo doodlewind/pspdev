@@ -95,15 +95,30 @@ for my $path (@ARGV) {
                     my $name_end = index($data, "\0", $name_start);
                     next if $name_end < 0 || $name_end > $shstr_end;
                     my $name = substr($data, $name_start, $name_end - $name_start);
-                    next unless $name eq ".MIPS.abiflags";
 
-                    my $off = unpack("V", substr($data, $sh + 16, 4));
-                    my $size = unpack("V", substr($data, $sh + 20, 4));
-                    next if $size < 24 || $off + $size > length($data);
-                    substr($data, $off + 7, 1) = "\x01";       # Val_GNU_MIPS_ABI_FP_DOUBLE
-                    substr($data, $off + 8, 4) = pack("V", 0); # ISA extension: none
-                    substr($data, $off + 12, 4) = pack("V", 0); # ASEs: none
-                    substr($data, $off + 16, 4) = pack("V", 1); # FLAGS1: odd single-precision regs
+                    if ($name eq ".MIPS.abiflags") {
+                        my $off = unpack("V", substr($data, $sh + 16, 4));
+                        my $size = unpack("V", substr($data, $sh + 20, 4));
+                        next if $size < 24 || $off + $size > length($data);
+                        substr($data, $off + 7, 1) = "\x01";       # Val_GNU_MIPS_ABI_FP_DOUBLE
+                        substr($data, $off + 8, 4) = pack("V", 0); # ISA extension: none
+                        substr($data, $off + 12, 4) = pack("V", 0); # ASEs: none
+                        substr($data, $off + 16, 4) = pack("V", 1); # FLAGS1: odd single-precision regs
+                    }
+
+                    if ($name eq ".gnu.attributes") {
+                        my $off = unpack("V", substr($data, $sh + 16, 4));
+                        my $size = unpack("V", substr($data, $sh + 20, 4));
+                        next if $off + $size > length($data);
+
+                        my $attrs = substr($data, $off, $size);
+                        # GNU MIPS Tag_GNU_MIPS_ABI_FP is encoded as tag 4 followed
+                        # by a small uleb128 value. Clang emits value 2 here while
+                        # the SDK/rustc-compatible .MIPS.abiflags metadata says
+                        # double-float. Keep both metadata sources in sync.
+                        $attrs =~ s/\x04\x02/\x04\x01/g;
+                        substr($data, $off, $size) = $attrs;
+                    }
                 }
             }
         }
